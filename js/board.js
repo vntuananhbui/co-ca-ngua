@@ -51,5 +51,16 @@
     return HOME[color][progress - engine.LAST_RING - 1];
   }
 
-  return { SIZE: SIZE, RING: RING, HOME: HOME, YARD_ORIGIN: YARD_ORIGIN, YARD_SLOTS: YARD_SLOTS, cellOf: cellOf };
+  /**
+   * Các ô quân lần lượt nhảy qua khi đi từ tiến độ `from` tới `to` (không gồm ô đứng ban đầu).
+   * Xuất quân từ chuồng: 1 bước tới ô xuất phát. Ngược lại: mỗi bước 1 ô, qua vòng ngoài rồi rẽ vào đường đích.
+   */
+  function pathCells(engine, color, from, to, tokenIndex) {
+    if (from === engine.YARD) return [cellOf(engine, color, to, tokenIndex)];
+    var out = [];
+    for (var p = from + 1; p <= to; p++) out.push(cellOf(engine, color, p, tokenIndex));
+    return out;
+  }
+
+  return { SIZE: SIZE, RING: RING, HOME: HOME, YARD_ORIGIN: YARD_ORIGIN, YARD_SLOTS: YARD_SLOTS, cellOf: cellOf, pathCells: pathCells };
 });

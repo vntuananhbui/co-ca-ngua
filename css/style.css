@@ -71,3 +71,31 @@ button.primary { background: #6d4c41; color: #fff; border-color: #4e342e; }
 .overlay .panel { text-align: center; display: flex; flex-direction: column; gap: 10px; min-width: 260px; }
 .winner-red { color: var(--red); } .winner-green { color: var(--green); }
 .winner-yellow { color: #f9a825; } .winner-blue { color: var(--blue); }
+
+/* ---------- Animation ---------- */
+.dice.shaking { animation: dice-shake .14s linear infinite; }
+@keyframes dice-shake {
+  0% { transform: rotate(0) translate(0, 0); }
+  25% { transform: rotate(-18deg) translate(-4px, 2px); }
+  50% { transform: rotate(12deg) translate(3px, -3px); }
+  75% { transform: rotate(-8deg) translate(2px, 3px); }
+  100% { transform: rotate(0) translate(0, 0); }
+}
+.token.moving { z-index: 6; }
+.token.hop { animation: token-hop .18s ease-out; }
+@keyframes token-hop {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-45%) scale(1.25); }
+  100% { transform: translateY(0) scale(1); }
+}
+.token.captured { z-index: 5; animation: token-captured .4s ease-in forwards; }
+@keyframes token-captured {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-20%) rotate(-15deg); }
+  40% { transform: translateX(20%) rotate(15deg); }
+  60% { transform: translateX(-15%); opacity: .7; }
+  100% { opacity: .15; transform: scale(.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice.shaking, .token.hop, .token.captured, .token.movable { animation: none; }
+}

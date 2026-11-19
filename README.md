@@ -14,5 +14,5 @@ Mở thẳng `index.html` bằng trình duyệt là chơi (không build, không 
 ## Cấu trúc
 - `js/game.js` — engine luật, không phụ thuộc DOM (dùng được cả trong Node).
 - `js/board.js` — toạ độ lưới 15×15 của các ô.
-- `js/ui.js`, `css/style.css`, `index.html` — giao diện.
+- `js/ui.js`, `css/style.css`, `index.html` — giao diện, có hiệu ứng xúc xắc lắc và quân nhảy từng ô (tắt khi bật prefers-reduced-motion hoặc `window.LUDO_ANIM = false`).
 - Test: xem `TEST.md`.

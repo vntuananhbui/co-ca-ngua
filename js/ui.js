@@ -9,6 +9,43 @@
   var boardEl = $('board');
   var state = null;
   var numPlayers = 4;
+  var busy = false;   // đang chạy animation: khoá nút tung và quân
+  var game = 0;       // tăng mỗi ván mới, để huỷ animation của ván cũ
+
+  // Thời lượng animation (ms). Ghi đè được qua window.LUDO_ANIM = { diceMs, diceTickMs, stepMs, captureMs }
+  // hoặc tắt hẳn bằng window.LUDO_ANIM = false. prefers-reduced-motion: reduce cũng tắt.
+  var ANIM = { diceMs: 700, diceTickMs: 70, stepMs: 180, captureMs: 400 };
+  function animEnabled() {
+    if (window.LUDO_ANIM === false) return false;
+    if (typeof window.setTimeout !== 'function') return false;
+    var mm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    return !(mm && mm.matches);
+  }
+  function anim(k) {
+    var o = window.LUDO_ANIM;
+    return o && typeof o === 'object' && typeof o[k] === 'number' ? o[k] : ANIM[k];
+  }
+  // setTimeout gắn với ván hiện tại: bấm Ván mới/Chơi lại giữa chừng thì callback cũ bị bỏ.
+  function later(ms, fn) {
+    var g = game;
+    window.setTimeout(function () { if (g === game) fn(); }, ms);
+  }
+  function restartClass(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth; // ép reflow để animation CSS chạy lại
+    el.classList.add(cls);
+  }
+  function tokenEl(color, ti) {
+    return Array.prototype.slice.call(boardEl.querySelectorAll('.token-' + color)).filter(function (t) { return Number(t.dataset.token) === ti; })[0];
+  }
+  function lockUI() {
+    busy = true;
+    $('roll-btn').disabled = true;
+    Array.prototype.slice.call(boardEl.querySelectorAll('.token')).forEach(function (t) {
+      t.disabled = true;
+      t.classList.remove('movable');
+    });
+  }
 
   function key(rc) { return rc[0] + ',' + rc[1]; }
   function place(el, rc, rowSpan, colSpan) {
@@ -80,7 +117,7 @@
         t.setAttribute('aria-label', E.COLOR_NAMES[p.color] + ' quân ' + (ti + 1));
         place(t, rc);
         if (n > 1) t.style.transform = 'translate(' + ((n - 1) * 18) + '%, ' + (-(n - 1) * 18) + '%) scale(0.8)';
-        if (pi === state.current && movable.indexOf(ti) !== -1) {
+        if (!busy && pi === state.current && movable.indexOf(ti) !== -1) {
           t.className += ' movable';
           t.addEventListener('click', function () { onMove(ti); });
         } else {
@@ -98,7 +135,7 @@
     turn.className = 'turn-badge badge-' + p.color;
     $('dice').textContent = state.dice ? DICE_FACES[state.dice] : '🎲';
     $('dice').dataset.value = state.dice || '';
-    $('roll-btn').disabled = state.phase !== 'roll';
+    $('roll-btn').disabled = busy || state.phase !== 'roll';
     var score = $('score');
     score.innerHTML = '';
     state.players.forEach(function (pl) {
@@ -114,20 +151,39 @@
   function render() { renderTokens(); renderStatus(); }
 
   function onRoll() {
-    if (!state || state.phase !== 'roll') return;
+    if (!state || busy || state.phase !== 'roll') return;
     var who = E.COLOR_NAMES[E.currentPlayer(state).color];
-    var r = E.rollDice(state);
-    if (r.passed) {
-      say(who + ' tung ' + r.value + ': không có nước đi hợp lệ, qua lượt.');
-    } else {
-      say(who + ' tung ' + r.value + ': chọn quân để đi (quân sáng viền).');
+    var r = E.rollDice(state); // engine cập nhật ngay; phần dưới chỉ là hiển thị
+    function done() {
+      busy = false;
+      var dice = $('dice');
+      dice.classList.remove('shaking');
+      if (r.passed) say(who + ' tung ' + r.value + ': không có nước đi hợp lệ, qua lượt.');
+      else say(who + ' tung ' + r.value + ': chọn quân để đi (quân sáng viền).');
+      render();
     }
-    render();
+    if (!animEnabled()) return done();
+    lockUI();
+    say(who + ' đang lắc xúc xắc...');
+    var dice = $('dice');
+    restartClass(dice, 'shaking');
+    var total = anim('diceMs'), tick = Math.max(1, anim('diceTickMs')), t = 0, face = 0;
+    (function shake() {
+      if (t >= total) return done();
+      var f;
+      do { f = 1 + Math.floor(Math.random() * 6); } while (f === face);
+      face = f;
+      dice.textContent = DICE_FACES[f];
+      dice.dataset.value = f;
+      t += tick;
+      later(tick, shake);
+    })();
   }
 
   function onMove(ti) {
-    if (state.phase !== 'move') return;
-    var r = E.moveToken(state, ti);
+    if (!state || busy || state.phase !== 'move') return;
+    var before = state.players.map(function (p) { return p.tokens.slice(); });
+    var r = E.moveToken(state, ti); // engine cập nhật ngay
     var who = E.COLOR_NAMES[r.color];
     var msg = who + ' đi quân ' + (ti + 1) + (r.from === E.YARD ? ' ra khỏi chuồng' : '') + '.';
     if (r.captured.length) {
@@ -135,16 +191,53 @@
     }
     if (r.finished) msg += ' Quân về đích!';
     if (r.extraTurn) msg += ' Ra 6, được tung tiếp.';
-    say(msg);
-    render();
-    if (r.winner) {
-      $('winner-text').textContent = E.COLOR_NAMES[r.winner] + ' thắng!';
-      $('winner-text').className = 'winner-' + r.winner;
-      $('winner').hidden = false;
+
+    function done() {
+      busy = false;
+      say(msg);
+      render();
+      if (r.winner) {
+        $('winner-text').textContent = E.COLOR_NAMES[r.winner] + ' thắng!';
+        $('winner-text').className = 'winner-' + r.winner;
+        $('winner').hidden = false;
+      }
+    }
+    if (!animEnabled()) return done();
+
+    lockUI();
+    var el = tokenEl(r.color, ti);
+    var path = B.pathCells(E, r.color, r.from, r.to, ti);
+    el.style.transform = '';
+    el.classList.add('moving');
+    var i = 0;
+    (function step() {
+      if (i >= path.length) {
+        el.classList.remove('moving', 'hop');
+        return afterMove();
+      }
+      place(el, path[i++]);
+      restartClass(el, 'hop');
+      later(anim('stepMs'), step);
+    })();
+
+    function afterMove() {
+      if (!r.captured.length) return done();
+      r.captured.forEach(function (c) {
+        var pi = state.players.findIndex(function (p) { return p.color === c.color; });
+        var victim = tokenEl(c.color, c.token);
+        if (!victim) return;
+        // vẫn đang đứng ở ô cũ (chưa render lại) — rung/mờ rồi mới về chuồng
+        place(victim, B.cellOf(E, c.color, before[pi][c.token], c.token));
+        victim.classList.add('captured');
+      });
+      later(anim('captureMs'), done);
     }
   }
 
   function startGame() {
+    game++;
+    busy = false;
+    $('dice').classList.remove('shaking');
     state = E.createGame(numPlayers);
     $('setup').hidden = true;
     $('winner').hidden = true;
@@ -155,10 +248,15 @@
   }
 
   function showSetup() {
+    game++;
+    busy = false;
     $('winner').hidden = true;
     $('game').hidden = true;
     $('setup').hidden = false;
   }
+
+  // Cho test/debug đọc trạng thái (không dùng trong game).
+  window.LudoUI = { getState: function () { return state; }, isBusy: function () { return busy; } };
 
   Array.prototype.slice.call(document.querySelectorAll('[data-players]')).forEach(function (btn) {
     btn.addEventListener('click', function () {

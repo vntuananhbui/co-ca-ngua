@@ -312,3 +312,22 @@ test('bàn cờ: đường đích mỗi màu 6 ô, nối tiếp ô vòng cuối,
     assert.deepEqual(B.cellOf(E, c, YARD, 3), B.YARD_SLOTS[c][3]);
   }
 });
+
+test('bàn cờ: pathCells trả đúng từng ô trung gian (vòng ngoài, qua góc, rẽ vào đường đích, xuất quân)', () => {
+  assert.deepEqual(B.pathCells(E, 'red', 3, 7, 0), [4, 5, 6, 7].map((i) => B.RING[i]));
+  assert.deepEqual(B.pathCells(E, 'red', 48, 52, 0), [B.RING[49], B.RING[50], B.HOME.red[0], B.HOME.red[1]]);
+  // Xanh lá vòng qua ô 51 → 0 của vòng tuyệt đối
+  assert.deepEqual(B.pathCells(E, 'green', 37, 40, 0), [B.RING[51], B.RING[0], B.RING[1]]);
+  assert.deepEqual(B.pathCells(E, 'blue', 54, 56, 0), [B.HOME.blue[4], B.HOME.blue[5]]);
+  assert.deepEqual(B.pathCells(E, 'yellow', YARD, 0, 2), [B.RING[E.START.yellow]]);
+  for (const c of E.COLORS) {
+    const full = B.pathCells(E, c, 0, GOAL, 0);
+    assert.equal(full.length, GOAL);
+    let prev = B.cellOf(E, c, 0, 0);
+    for (const cell of full) {
+      const d = Math.abs(prev[0] - cell[0]) + Math.abs(prev[1] - cell[1]);
+      assert.ok(d === 1 || d === 2, `${c}: bước ${prev} → ${cell} không liền kề`);
+      prev = cell;
+    }
+  }
+});
